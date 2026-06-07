@@ -142,6 +142,34 @@ button:disabled{opacity:.4; cursor:default;}
 .cite-links{display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;}
 .cite-links a{font-family:"JetBrains Mono",monospace; font-size:13px; color:var(--teal); border:1px solid var(--line); border-radius:8px; padding:6px 14px; transition:all .18s;}
 .cite-links a:hover{border-color:var(--teal); background:var(--teal-bg);}
+.ledger{margin-top:14px; background:var(--paper); border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+.ledger-hd{display:flex; align-items:center; justify-content:space-between; padding:9px 14px; border-bottom:1px solid var(--line); background:var(--paper3);}
+.ledger-hd .lt{font-family:"JetBrains Mono",monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint);}
+.ledger-hd .prog{font-family:"JetBrains Mono",monospace; font-size:12px; color:var(--teal);}
+.lk-row{display:flex; align-items:center; gap:10px; padding:8px 14px; border-bottom:1px solid var(--line-soft); transition:opacity .35s, background .35s; font-family:"JetBrains Mono",monospace;}
+.lk-row:last-child{border-bottom:none;}
+.lk-row.pending{opacity:.42;}
+.lk-row.just{background:var(--ok-bg);}
+.lk-check{width:16px; text-align:center; color:var(--ink-faint); font-size:13px;}
+.lk-row.done .lk-check{color:var(--ok);}
+.lk-key{color:var(--ink); min-width:62px; font-size:13px;}
+.lk-detail{color:var(--ink-soft); flex:1; font-size:12.5px;}
+.lk-detail b{color:var(--teal); font-weight:500;}
+.cmptable{width:100%; border-collapse:collapse; margin:8px 0; font-size:16px;}
+.cmptable th,.cmptable td{text-align:left; padding:12px 14px; border-bottom:1px solid var(--line); vertical-align:top;}
+.cmptable thead th{font-family:"Fraunces",serif; font-size:18px; font-weight:500;}
+.cmptable thead th.cb{color:var(--coral);} .cmptable thead th.cr{color:var(--teal);}
+.cmptable td:first-child,.cmptable th:first-child{font-family:"JetBrains Mono",monospace; font-size:12px; color:var(--ink-faint); width:132px;}
+.cmptable td{color:var(--ink-soft); line-height:1.45;}
+.cmptable td b{color:var(--ink); font-weight:500;}
+.usecards{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:1.6em 0;}
+.usecard{border:1px solid var(--line); border-top:3px solid var(--line); border-radius:14px; padding:18px 20px; background:var(--paper2); box-shadow:var(--shadow);}
+.usecard.bloom{border-top-color:var(--coral);} .usecard.ribbon{border-top-color:var(--teal);}
+.usecard h3{margin:0 0 10px; font-size:19px;}
+.usecard.bloom h3{color:var(--coral);} .usecard.ribbon h3{color:var(--teal);}
+.usecard ul{margin:0; padding-left:20px; font-size:15.5px; color:var(--ink-soft); line-height:1.5;}
+.usecard li{margin-bottom:8px;}
+@media (max-width:560px){ .usecards{grid-template-columns:1fr;} .cmptable{font-size:14px;} .cmptable td:first-child,.cmptable th:first-child{width:96px;} .lk-detail{font-size:11.5px;} .lk-key{min-width:52px;} }
 
 /* code walkthrough */
 .code{margin:1.4em 0; background:var(--paper2); border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:var(--shadow);}
@@ -411,6 +439,10 @@ input[type=range]{flex:1; accent-color:var(--teal); height:4px;}
     <div class="strip" id="qstrip"></div>
     <div class="idxrow" id="qidx"></div>
     <div class="narr" id="narr"></div>
+    <div class="ledger" id="ledger">
+      <div class="ledger-hd"><span class="lt">keys inserted so far</span><span class="prog" id="ledprog">0 / 4</span></div>
+      <div id="ledrows"></div>
+    </div>
     <div class="btnrow" id="insctrl" style="margin-top:14px;">
       <button id="insPlay">▶ play insertion</button>
       <button id="insStep">step ▸</button>
@@ -469,9 +501,58 @@ input[type=range]{flex:1; accent-color:var(--teal); height:4px;}
   This is the classic Ribbon-vs-Bloom decision: Bloom for the hot, frequently-rewritten upper levels; Ribbon for the cold, stable, space-dominated lower levels. Same filter <em>job</em>, different point on the space–CPU trade-off.</div>
 </div></section>
 
-<!-- 14. RECAP -->
+<!-- 14. COMPARISON -->
+<section id="s14b"><div class="wrap reveal">
+  <div class="tag">14 · Bloom vs Ribbon</div>
+  <h2>Side by side — and when to reach for each</h2>
+  <p>Both filters do the exact same job: answer &ldquo;is this key in the set?&rdquo; with no false negatives and a tunable false-positive rate. They differ entirely in <em>what they spend to get there</em>. Bloom is cheap to build and lightning-fast to query but loose with memory; Ribbon is thrifty with memory but costs more CPU to build. Here's the whole trade-off in one view.</p>
+  <figure><div class="fig" style="overflow-x:auto;">
+    <table class="cmptable">
+      <thead><tr><th></th><th class="cb">Bloom filter</th><th class="cr">Ribbon filter</th></tr></thead>
+      <tbody>
+        <tr><td>space overhead</td><td><b>~+44%</b> over the theoretical minimum, and essentially fixed</td><td><b>~+10%</b>, tunable down to a few percent by widening the band</td></tr>
+        <tr><td>how it's built</td><td>Hash a key, flip a few bits on. Trivial, single pass</td><td>Solve a banded system of XOR equations (Gaussian elimination)</td></tr>
+        <tr><td>build cost</td><td><b>Cheap.</b> Low, predictable CPU and memory</td><td><b>Heavier.</b> More CPU; ~3× temporary memory while solving</td></tr>
+        <tr><td>query speed</td><td><b>Fastest.</b> Blocked Bloom touches one cache line</td><td>Competitive; reads a short band of slots, a touch heavier</td></tr>
+        <tr><td>can the set change?</td><td><b>Yes</b> — insert anytime; counting variants even delete</td><td><b>No</b> — static, solved once for a fixed key set</td></tr>
+        <tr><td>build reliability</td><td>Deterministic; construction never fails</td><td>Tiny chance of an unsolvable system → reseed and retry</td></tr>
+        <tr><td>sweet spot</td><td>Hot, mutable, frequently rebuilt, latency-critical</td><td>Cold, static, long-lived, memory-dominated</td></tr>
+      </tbody>
+    </table>
+  </div><figcaption>Same guarantee, opposite ends of the same dial: Bloom trades memory for speed and simplicity; Ribbon trades CPU for memory.</figcaption></figure>
+
+  <h3>Where each one fits</h3>
+  <p>The decision almost always comes down to two questions: <strong>does the set change after you build it</strong>, and <strong>is memory or CPU the scarcer resource</strong>. That splits the world cleanly.</p>
+  <div class="usecards">
+    <div class="usecard bloom">
+      <h3>Reach for Bloom when…</h3>
+      <ul>
+        <li>the set keeps changing — you insert (or delete) after building</li>
+        <li>the filter is rebuilt often, so build speed dominates</li>
+        <li>you need the absolute lowest query latency</li>
+        <li>CPU is tight but you have RAM to spare</li>
+        <li>simplicity and easy correctness matter</li>
+        <li><em>seen in:</em> Parquet files, which embed a blocked Bloom (Split-Block) filter per column chunk for portability and speed</li>
+      </ul>
+    </div>
+    <div class="usecard ribbon">
+      <h3>Reach for Ribbon when…</h3>
+      <ul>
+        <li>the set is fixed at build time and never mutated</li>
+        <li>the structure is long-lived and rarely rebuilt</li>
+        <li>memory is the bottleneck across billions of keys</li>
+        <li>build cost is amortised over a huge number of reads</li>
+        <li>you'll happily spend CPU to reclaim ~30% of filter RAM</li>
+        <li><em>seen in:</em> RocksDB, which builds Ribbon filters during compaction for the large, stable lower levels</li>
+      </ul>
+    </div>
+  </div>
+  <p>In practice they're partners, not rivals. RocksDB ships <strong>both</strong> and chooses per level — Bloom for the churning upper levels (and for flush output, where write speed matters), Ribbon for the deep, stable levels that hold most of the data and dominate filter memory. Parquet, an interchange format that prizes a frozen, universally-implementable spec over squeezing out the last bytes, sticks with Bloom. Pick the filter by asking what your data is doing, not which one is &ldquo;better&rdquo; — there is no better, only a better fit.</p>
+</div></section>
+
+<!-- 15. RECAP -->
 <section id="s14"><div class="wrap reveal">
-  <div class="tag">14 · The one sentence</div>
+  <div class="tag">15 · The one sentence</div>
   <h2>Putting it all back together</h2>
   <p>You now have every piece. A Ribbon filter:</p>
   <p>① gives each key <strong>one XOR equation</strong> — &ldquo;my lockers must XOR to my fingerprint&rdquo; — using a hash to pick the lockers and the fingerprint. ② confines each equation to a <strong>short window</strong>, so all the equations stack into a tidy <strong>diagonal band</strong>. ③ <strong>solves</strong> that banded system in nearly one pass to fill the lockers. ④ answers a lookup by <strong>re-XOR-ing</strong> a key's window and comparing to its fingerprint — always right for members, occasionally a harmless false alarm for non-members, at a rate you set with the fingerprint length.</p>
@@ -484,7 +565,7 @@ input[type=range]{flex:1; accent-color:var(--teal); height:4px;}
 
 <!-- 15. SOURCE -->
 <section id="s15"><div class="wrap reveal">
-  <div class="tag">15 · Source &amp; further reading</div>
+  <div class="tag">16 · Source &amp; further reading</div>
   <h2>Where this comes from</h2>
   <p>The Ribbon filter was introduced by researchers at <strong>Facebook, Inc.</strong> (the team behind RocksDB). If you want the rigorous treatment — the linear-algebra proofs, the space-overhead tables, and the benchmarks this explainer summarises — go straight to the original paper:</p>
   <figure><div class="fig">
@@ -726,6 +807,7 @@ buildStrip(document.getElementById('eqstrip'), document.getElementById('eqidx'),
       lookzone=document.getElementById('lookzone'), phasetag=document.getElementById('phasetag'),
       insPlay=document.getElementById('insPlay'), insStep=document.getElementById('insStep'),
       insReset=document.getElementById('insReset'), lookPlay=document.getElementById('lookPlay');
+  var ledprog=document.getElementById('ledprog'), ledrows=document.getElementById('ledrows');
   var work=new Array(N).fill(null);
   var free={1:3,2:6,3:1,5:2,7:0,8:5,10:6,11:2};
   var ins=[
@@ -734,6 +816,21 @@ buildStrip(document.getElementById('eqstrip'), document.getElementById('eqidx'),
     {key:'post:7',  win:[5,6,7,8],  anchor:6, code:3},
     {key:'tag:db',  win:[7,8,9,10], anchor:9, code:0}
   ];
+  var ledger=ins.map(function(){ return {done:false, val:null}; });
+  function renderLedger(justIdx){
+    ledrows.innerHTML = ins.map(function(m,i){
+      var st=ledger[i];
+      var cls='lk-row '+(st.done?'done':'pending')+(i===justIdx?' just':'');
+      var range=m.win[0]+'\u2013'+m.win[m.win.length-1];
+      var detail = st.done
+        ? 'window '+range+', fp '+m.code+' \u2192 set locker <b>'+m.anchor+' = '+st.val+'</b>'
+        : 'window '+range+', fp '+m.code+' \u2014 waiting';
+      return '<div class="'+cls+'"><span class="lk-check">'+(st.done?'\u2713':'\u00b7')+'</span>'+
+             '<span class="lk-key">'+m.key+'</span><span class="lk-detail">'+detail+'</span></div>';
+    }).join('');
+    var n=ledger.filter(function(s){return s.done;}).length;
+    ledprog.textContent = n+' / '+ins.length;
+  }
   function render(win, cls, popIdx){
     strip.innerHTML=''; idx.innerHTML='';
     for(var i=0;i<N;i++){
@@ -752,7 +849,8 @@ buildStrip(document.getElementById('eqstrip'), document.getElementById('eqidx'),
   function doStep(s){
     if(s===0){
       work=new Array(N).fill(null); render();
-      narr.innerHTML='Every locker starts <span class="hl">empty</span> \u2014 no value yet. The job: fill them so all four members\u2019 rules come true at the same time.';
+      ledger=ins.map(function(){ return {done:false, val:null}; }); renderLedger(-1);
+      narr.innerHTML='Every locker starts <span class="hl">empty</span> \u2014 no value yet. The job: fill them so all four members\u2019 rules come true at the same time. The ledger below tracks which keys are in.';
     } else if(s===1){
       Object.keys(free).forEach(function(k){ work[+k]=free[k]; });
       render(Object.keys(free).map(Number),'win');
@@ -763,6 +861,7 @@ buildStrip(document.getElementById('eqstrip'), document.getElementById('eqidx'),
       var cur=xorOf(others);
       var val=cur ^ m.code;
       work[m.anchor]=val;
+      ledger[s-2].done=true; ledger[s-2].val=val; renderLedger(s-2);
       render(m.win,'ok',m.anchor);
       var note='';
       if(s===3) note=' <span style="color:var(--ink-faint)">Lockers 2\u20133 are shared with user:42 \u2014 but we only changed locker 4, so user:42\u2019s rule is left intact.</span>';
@@ -770,7 +869,7 @@ buildStrip(document.getElementById('eqstrip'), document.getElementById('eqidx'),
       narr.innerHTML='Insert <span class="hl">'+m.key+'</span>: its window <b>'+m.win[0]+'\u2013'+m.win[m.win.length-1]+'</b> must XOR to <b>'+m.code+'</b>. '+
         'The other lockers in it already give <span class="calcinline">'+cur+'</span>, so its deciding locker <b>'+m.anchor+'</b> mutates to <span class="calcinline">'+cur+' \u2295 '+m.code+' = '+val+'</span>. Rule satisfied \u2713'+note;
     } else if(s===6){
-      render();
+      render(); renderLedger(-1);
       narr.innerHTML='All four members inserted. Every locker holds a value and <span class="hl">every rule holds at once</span> \u2014 this row of numbers <em>is</em> the filter. No keys are stored anywhere. Now look some keys up \u2193';
       lookzone.style.display='block'; phasetag.textContent='phase: lookup';
       insStep.disabled=true; insPlay.disabled=true;
