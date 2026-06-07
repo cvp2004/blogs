@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Field notes — an engineering notebook</title>
+<meta name="description" content="Long-form, interactive explainers on systems, storage engines, and the data structures underneath them.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f6f1e7; --paper2:#efe8d8; --paper3:#e7dfcc;
+  --ink:#26211a; --ink-soft:#5f5747; --ink-faint:#8a8270;
+  --line:rgba(40,30,15,.13); --line-soft:rgba(40,30,15,.07);
+  --teal:#0f6e56; --teal-bright:#1d9e75; --teal-bg:#dff1ea;
+  --coral:#cf522a; --coral-bg:#f7e2d8;
+  --shadow:0 1px 0 rgba(40,30,15,.05), 0 12px 28px -18px rgba(40,30,15,.35);
+}
+html[data-theme="dark"]{
+  --paper:#26241d; --paper2:#2f2c24; --paper3:#3a362c;
+  --ink:#f4efe3; --ink-soft:#c3bba7; --ink-faint:#948c79;
+  --line:rgba(240,232,210,.16); --line-soft:rgba(240,232,210,.07);
+  --teal:#7ddcb7; --teal-bright:#9ae8cb; --teal-bg:#1b3d33;
+  --coral:#f4a585; --coral-bg:#41281f;
+  --shadow:0 1px 0 rgba(0,0,0,.25), 0 18px 38px -22px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"Newsreader",Georgia,serif; font-size:20px; line-height:1.7; font-weight:400;
+  background-image:
+    linear-gradient(var(--line-soft) 1px,transparent 1px),
+    linear-gradient(90deg,var(--line-soft) 1px,transparent 1px);
+  background-size:28px 28px;
+  -webkit-font-smoothing:antialiased; transition:background-color .4s,color .4s;
+}
+html[data-theme="dark"] body::before{
+  content:""; position:fixed; inset:0; z-index:-2; pointer-events:none;
+  background:
+    radial-gradient(900px 600px at 24% 6%, rgba(125,220,183,.07), transparent 60%),
+    radial-gradient(800px 700px at 90% 80%, rgba(244,165,133,.06), transparent 62%);
+}
+.wrap{max-width:860px; margin:0 auto; padding:0 24px;}
+h1,h2,h3{font-family:"Fraunces",serif; font-weight:600; line-height:1.1; color:var(--ink); letter-spacing:-.01em;}
+a{color:var(--teal); text-decoration:none;}
+
+.toolbar{position:fixed; top:16px; right:16px; z-index:60;}
+.toolbar button{font-family:"JetBrains Mono",monospace; font-size:13px; color:var(--ink); background:var(--paper2); box-shadow:var(--shadow); border:1px solid var(--line); border-radius:10px; padding:8px 12px; cursor:pointer; transition:all .18s;}
+.toolbar button:hover{border-color:var(--teal);}
+
+/* hero */
+.hero{padding:84px 0 40px; position:relative;}
+.eyebrow{font-family:"JetBrains Mono",monospace; font-size:13px; letter-spacing:.22em; text-transform:uppercase; color:var(--teal); margin-bottom:22px;}
+.hero h1{font-family:"Fraunces",serif; font-size:clamp(44px,8vw,76px); font-weight:600; line-height:.98; letter-spacing:-.025em; margin:0 0 .3em;}
+.hero h1 .ital{font-style:italic; font-weight:500; color:var(--teal);}
+.hero .sub{font-size:21px; color:var(--ink-soft); max-width:560px; line-height:1.55; margin:0;}
+.scan{display:flex; gap:6px; margin:34px 0 0; max-width:420px;}
+.scan .u{flex:1; height:10px; border-radius:3px; background:var(--line); transition:background .45s, transform .45s;}
+.scan .u.lit{background:var(--teal); transform:scaleY(1.5);}
+
+/* controls */
+.controls{margin:40px 0 26px; border-top:1px solid var(--line); padding-top:26px;}
+.searchbox{position:relative; margin-bottom:18px;}
+.searchbox input{width:100%; height:48px; font-family:"Newsreader",serif; font-size:18px; color:var(--ink); background:var(--paper2); border:1px solid var(--line); border-radius:12px; padding:0 16px 0 44px; transition:border-color .18s, box-shadow .18s;}
+.searchbox input:focus{outline:none; border-color:var(--teal); box-shadow:0 0 0 3px var(--teal-bg);}
+.searchbox input::placeholder{color:var(--ink-faint);}
+.searchbox .ic{position:absolute; left:15px; top:50%; transform:translateY(-50%); width:18px; height:18px; opacity:.5; pointer-events:none;}
+.tags{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+.chip{font-family:"JetBrains Mono",monospace; font-size:12.5px; color:var(--ink-soft); background:var(--paper2); border:1px solid var(--line); border-radius:999px; padding:6px 13px; cursor:pointer; transition:all .16s; user-select:none;}
+.chip:hover{border-color:var(--teal); color:var(--teal);}
+.chip.on{background:var(--teal); color:#fff; border-color:var(--teal);}
+html[data-theme="dark"] .chip.on{color:#13231d;}
+.chip-label{font-family:"JetBrains Mono",monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); margin-right:4px;}
+
+.count{font-family:"JetBrains Mono",monospace; font-size:12.5px; color:var(--ink-faint); margin:0 0 18px;}
+
+/* post cards */
+.grid{display:flex; flex-direction:column; gap:18px; margin-bottom:60px;}
+.card{display:block; background:var(--paper2); border:1px solid var(--line); border-radius:16px; padding:24px 26px; box-shadow:var(--shadow); transition:transform .22s cubic-bezier(.2,.7,.2,1), border-color .22s; position:relative; opacity:0; transform:translateY(14px);}
+.card.in{opacity:1; transform:none;}
+.card:hover{transform:translateY(-3px); border-color:var(--teal);}
+.card .meta{display:flex; align-items:center; gap:12px; font-family:"JetBrains Mono",monospace; font-size:12px; color:var(--ink-faint); margin-bottom:10px; flex-wrap:wrap;}
+.card .meta .ctx{color:var(--coral);}
+.card h2{font-size:27px; font-weight:600; margin:0 0 8px; line-height:1.15; transition:color .18s;}
+.card:hover h2{color:var(--teal);}
+.card .blurb{font-size:17.5px; color:var(--ink-soft); line-height:1.55; margin:0 0 16px;}
+.card .ptags{display:flex; gap:7px; flex-wrap:wrap;}
+.card .ptag{font-family:"JetBrains Mono",monospace; font-size:11.5px; color:var(--teal); background:var(--teal-bg); border-radius:6px; padding:3px 9px;}
+.card .arrow{position:absolute; top:24px; right:26px; color:var(--ink-faint); font-size:18px; transition:transform .22s, color .22s;}
+.card:hover .arrow{transform:translateX(4px); color:var(--teal);}
+
+.empty{text-align:center; color:var(--ink-faint); padding:50px 0; font-size:18px;}
+.footer{padding:40px 0 90px; border-top:1px solid var(--line); color:var(--ink-faint); font-size:14px; font-family:"JetBrains Mono",monospace; display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;}
+.footer a{color:var(--ink-faint);} .footer a:hover{color:var(--teal);}
+
+@media (max-width:560px){
+  body{font-size:18px;} .hero h1{font-size:42px;} .card h2{font-size:23px;}
+  .card .arrow{display:none;}
+}
+@media (prefers-reduced-motion:reduce){
+  .card{opacity:1; transform:none; transition:none;}
+  .scan .u{transition:none;} *{scroll-behavior:auto;}
+}
+</style>
+</head>
+<body>
+<div class="toolbar"><button id="themeBtn" title="Toggle light / dark">☀ / ☾</button></div>
+
+<header class="hero wrap">
+  <div class="eyebrow">an engineering notebook</div>
+  <h1>Field <span class="ital">notes</span></h1>
+  <p class="sub">Long-form, interactive explainers on systems, storage engines, and the data structures hiding underneath them — built up from first principles.</p>
+  <div class="scan" id="scan" aria-hidden="true"></div>
+</header>
+
+<main class="wrap">
+  <div class="controls">
+    <div class="searchbox">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input type="text" id="search" placeholder="Search posts by title, topic, or tag…" autocomplete="off">
+    </div>
+    <div class="tags" id="tags"><span class="chip-label">filter</span></div>
+  </div>
+  <p class="count" id="count"></p>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" style="display:none;">No posts match that search yet.</div>
+</main>
+
+<footer class="footer wrap">
+  <span>Field notes · built as static HTML</span>
+  <span><a href="https://github.com/cvp2004">github.com/cvp2004</a></span>
+</footer>
+
+<script>
+"use strict";
+var reduced = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+/* theme */
+document.getElementById('themeBtn').addEventListener('click', function(){
+  var h=document.documentElement;
+  h.setAttribute('data-theme', h.getAttribute('data-theme')==='light'?'dark':'light');
+});
+
+/* hero scan animation */
+(function(){
+  var scan=document.getElementById('scan'), n=16, units=[];
+  for(var i=0;i<n;i++){ var u=document.createElement('div'); u.className='u'; scan.appendChild(u); units.push(u); }
+  if(reduced){ [2,3,4,9,10,11].forEach(function(i){units[i].classList.add('lit');}); return; }
+  var pos=0;
+  setInterval(function(){
+    units.forEach(function(u){u.classList.remove('lit');});
+    for(var k=0;k<4;k++){ var idx=(pos+k)%n; units[idx].classList.add('lit'); }
+    pos=(pos+1)%n;
+  }, 480);
+})();
+
+/* fallback data (used when opened from file:// where fetch is blocked;
+   on GitHub Pages, posts.json is fetched live and is the source of truth) */
+var FALLBACK_POSTS = [
+  {
+    "title":"The Ribbon filter, from scratch",
+    "file":"ribbon-filter-explained.html",
+    "date":"2026-06-07",
+    "tags":["data structures","databases","storage engines","probabilistic filters"],
+    "blurb":"A tiny gadget that answers \u201cis this key in the set?\u201d using almost no memory. Built up from absolute zero \u2014 bits, hashing, XOR, and one beautiful diagonal stripe \u2014 with interactive demos for every step.",
+    "context":"interactive \u00b7 ~20 min read"
+  }
+];
+
+var posts=[], activeTags=new Set(), query="";
+
+function fmtDate(iso){
+  var d=new Date(iso); if(isNaN(d)) return iso;
+  return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+}
+
+function allTags(){
+  var s=new Set(); posts.forEach(function(p){ (p.tags||[]).forEach(function(t){s.add(t);}); });
+  return Array.from(s).sort();
+}
+
+function matches(p){
+  for(var t of activeTags){ if(!(p.tags||[]).includes(t)) return false; }
+  if(query){
+    var hay=(p.title+' '+(p.blurb||'')+' '+(p.tags||[]).join(' ')).toLowerCase();
+    if(hay.indexOf(query)<0) return false;
+  }
+  return true;
+}
+
+function renderTags(){
+  var box=document.getElementById('tags');
+  box.querySelectorAll('.chip').forEach(function(c){c.remove();});
+  allTags().forEach(function(t){
+    var c=document.createElement('span'); c.className='chip'+(activeTags.has(t)?' on':''); c.textContent=t;
+    c.addEventListener('click', function(){
+      if(activeTags.has(t)) activeTags.delete(t); else activeTags.add(t);
+      renderTags(); renderGrid();
+    });
+    box.appendChild(c);
+  });
+}
+
+function renderGrid(){
+  var grid=document.getElementById('grid'), empty=document.getElementById('empty'), count=document.getElementById('count');
+  var list=posts.filter(matches).sort(function(a,b){ return new Date(b.date)-new Date(a.date); });
+  grid.innerHTML='';
+  empty.style.display = list.length? 'none':'block';
+  var total=posts.length, shown=list.length;
+  count.textContent = shown===total ? (total+' post'+(total===1?'':'s')) : (shown+' of '+total+' posts');
+  list.forEach(function(p,i){
+    var a=document.createElement('a'); a.className='card'; a.href=p.file;
+    var tags=(p.tags||[]).map(function(t){return '<span class="ptag">'+t+'</span>';}).join('');
+    a.innerHTML=
+      '<div class="meta"><span>'+fmtDate(p.date)+'</span>'+(p.context?'<span class="ctx">'+p.context+'</span>':'')+'</div>'+
+      '<h2>'+p.title+'</h2>'+
+      (p.blurb?'<p class="blurb">'+p.blurb+'</p>':'')+
+      '<div class="ptags">'+tags+'</div>'+
+      '<span class="arrow">→</span>';
+    grid.appendChild(a);
+    if(reduced){ a.classList.add('in'); }
+    else setTimeout(function(){ a.classList.add('in'); }, 60*i);
+  });
+}
+
+document.getElementById('search').addEventListener('input', function(e){
+  query=e.target.value.trim().toLowerCase(); renderGrid();
+});
+
+(async function init(){
+  try{
+    var r=await fetch('posts.json',{cache:'no-store'});
+    if(r.ok){ posts=await r.json(); } else { posts=FALLBACK_POSTS; }
+  }catch(e){ posts=FALLBACK_POSTS; }
+  renderTags(); renderGrid();
+})();
+</script>
+</body>
+</html>

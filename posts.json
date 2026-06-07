@@ -1,0 +1,10 @@
+[
+  {
+    "title": "The Ribbon filter, from scratch",
+    "file": "ribbon-filter-explained.html",
+    "date": "2026-06-07",
+    "tags": ["data structures", "databases", "storage engines", "probabilistic filters"],
+    "blurb": "A tiny gadget that answers \u201cis this key in the set?\u201d using almost no memory. Built up from absolute zero \u2014 bits, hashing, XOR, and one beautiful diagonal stripe \u2014 with interactive demos for every step.",
+    "context": "interactive \u00b7 ~20 min read"
+  }
+]
